@@ -1,0 +1,44 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+
+#define DHTPIN D4
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// Wi-Fi & MQTT
+const char* ssid = "SSID";
+const char* password = "PASSWORD";
+const char* mqttServer = "broker.hivemq.com"; // or your local broker
+const int mqttPort = 1883;
+const char* topic = "wemos/temp";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+
+  client.setServer(mqttServer, mqttPort);
+}
+
+void loop() {
+  if (!client.connected()) {
+    while (!client.connected()) {
+      client.connect("DHTPublisher");
+    }
+  }
+
+  float t = dht.readTemperature(); // Read temperature
+  if (!isnan(t)) {
+    char payload[8];
+    dtostrf(t, 4, 1, payload);  // Format to 1 decimal place
+    client.publish(topic, payload); // Send to broker
+  }
+
+  client.loop();
+  delay(5000); // every 5 seconds
+}
