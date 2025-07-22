@@ -1,0 +1,57 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+#include <TM1637Display.h>
+
+// WiFi and MQTT config
+const char* ssid = "SSID";
+const char* password = "PASSWORD";
+const char* mqttServer = "broker.hivemq.com";
+const int mqttPort = 1883;
+const char* topic = "wemos/temp";
+
+// TM1637 setup
+#define CLK D2
+#define DIO D3
+TM1637Display display(CLK, DIO);
+
+// °C symbol segments
+const uint8_t celsius[] = {
+  SEG_A | SEG_B | SEG_F | SEG_G,  // Circle-ish
+  SEG_A | SEG_D | SEG_E | SEG_F   // C
+};
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  char msg[10];
+  memcpy(msg, payload, length);
+  msg[length] = '\0';
+
+  float temp = atof(msg);   // Convert to float
+  int tempInt = int(temp);  // Drop decimals
+
+  display.clear();
+  display.showNumberDec(tempInt, false, 2, 0);  // Show 2-digit temperature
+  display.setSegments(celsius, 2, 2);           // Show °C on last 2 digits
+}
+
+void setup() {
+  Serial.begin(115200);
+  display.setBrightness(0x0f);
+  display.clear();
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(callback);
+  while (!client.connected()) {
+    client.connect("TM1637Client");
+  }
+  client.subscribe(topic);
+}
+
+void loop() {
+  client.loop();
+}
